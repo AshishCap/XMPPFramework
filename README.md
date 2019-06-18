@@ -1,0 +1,2 @@
+# XMPPFramework
+Custom XMPP framework
