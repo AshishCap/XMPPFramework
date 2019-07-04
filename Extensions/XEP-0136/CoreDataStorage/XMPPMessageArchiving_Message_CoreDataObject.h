@@ -30,6 +30,9 @@
 @property (nonatomic, strong) NSDate * timestamp;
 
 @property (nonatomic, strong) NSString * streamBareJidStr;
+@property (nonatomic, strong) NSString * messageId;
+@property (nonatomic, strong) NSString * messageStatus;
+@property (nonatomic, strong) NSString * groupSenderJidStr;
 
 /**
  * This method is called immediately before the object is inserted into the managedObjectContext.
