@@ -52,9 +52,33 @@
                                                       streamJid:(XMPPJID *)streamJid
                                            managedObjectContext:(NSManagedObjectContext *)moc;
 
-- (XMPPMessageArchiving_Contact_CoreDataObject *)contactWithBareJidStr:(NSString *)contactBareJidStr
-                                                      streamBareJidStr:(NSString *)streamBareJidStr
-                                                  managedObjectContext:(NSManagedObjectContext *)moc;
+- (XMPPMessageArchiving_Contact_CoreDataObject *)contactWithBareJidStr:(NSString *)contactBareJidStr streamBareJidStr:(NSString *)streamBareJidStr managedObjectContext:(NSManagedObjectContext *)moc;
+
+- (XMPPMessageArchiving_Message_CoreDataObject *)composingMessageWithJid:(XMPPJID *)messageJid
+                                                               streamJid:(XMPPJID *)streamJid
+                                                                outgoing:(BOOL)isOutgoing
+                                                    managedObjectContext:(NSManagedObjectContext *)moc;
+
+- (void)willInsertMessage:(XMPPMessageArchiving_Message_CoreDataObject *)message;
+- (void)didUpdateMessage:(XMPPMessageArchiving_Message_CoreDataObject *)message;
+- (void)willDeleteMessage:(XMPPMessageArchiving_Message_CoreDataObject *)message;
+
+- (void)willInsertContact:(XMPPMessageArchiving_Contact_CoreDataObject *)contact;
+- (void)didUpdateContact:(XMPPMessageArchiving_Contact_CoreDataObject *)contact;
+
+- (void)UpdateRecentMessageOfContactWithBareJidStr:(NSString *)contactBareJidStr managedObjectContext:(NSManagedObjectContext *)moc;
+
+- (void)willInsertContact:(XMPPMessageArchiving_Contact_CoreDataObject *)contact;
+- (void)didUpdateContact:(XMPPMessageArchiving_Contact_CoreDataObject *)contact;
+
+- (void)insertUpdateNewContact:(XMPPMessage *)message outgoing:(BOOL)isOutgoing xmppStream:(XMPPStream *)xmppStream;
+- (void)updateMessageStatus:(NSString *)messageId status:(NSString*)status;
+- (void)updateDeletedMessage:(NSString *)messageId message_delete:(NSString*)message_delete;
+- (void)updateMediaMessage:(NSString*)mediaUrl messageId:(NSString*)messageId;
+- (void)setUnreadMessageToZero:(NSString*)bareJidStr;
+- (void)deleteMessage:(NSString*)messageId;
+- (void)clearAllMessage:(NSString*)bareJidStr isAllMessages:(BOOL)isAllMessages;
+- (void)deleteAndExitChatRoom:(NSString*)bareJidStr isAllRooms:(BOOL)isAllRooms;
 
 /* Inherited from XMPPCoreDataStorage
  * Please see the XMPPCoreDataStorage header file for extensive documentation.

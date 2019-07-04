@@ -461,6 +461,42 @@ static NSString *const XMPPRoomLightDestroy = @"urn:xmpp:muclight:0#destroy";
 	}
 }
 
+- (void)RemoveMemberFromGroup:(nonnull NSString *)member
+{
+	dispatch_block_t block = ^{ @autoreleasepool {
+		
+		NSString *iqID = [XMPPStream generateUUID];
+		NSXMLElement *iq = [NSXMLElement elementWithName:@"iq"];
+		[iq addAttributeWithName:@"id" stringValue:iqID];
+		[iq addAttributeWithName:@"to" stringValue:self.roomJID.full];
+		[iq addAttributeWithName:@"type" stringValue:@"set"];
+		XMPPJID *user = [XMPPJID jidWithString:member];//member;
+		
+		NSXMLElement *userElement = [NSXMLElement elementWithName:@"user" stringValue:member];
+		[userElement addAttributeWithName:@"affiliation" stringValue:@"none"];
+		
+		NSXMLElement *query = [NSXMLElement elementWithName:@"query" xmlns:XMPPRoomLightAffiliations];
+		//        NSXMLElement *user = [NSXMLElement elementWithName:@"user"];
+		//        [user addAttributeWithName:@"affiliation" stringValue:@"none"];
+		//        user.stringValue = xmppStream.myJID.bare;
+		
+		[query addChild:userElement];
+		[iq addChild:query];
+		
+		[responseTracker addID:iqID
+						target:self
+					  selector:@selector(handleChangeAffiliations:withInfo:)
+					   timeout:60.0];
+		
+		[xmppStream sendElement:iq];
+	}};
+	
+	if (dispatch_get_specific(moduleQueueTag))
+	block();
+	else
+	dispatch_async(moduleQueue, block);
+}
+
 - (void)destroyRoom {
 	dispatch_block_t block = ^{ @autoreleasepool {
 

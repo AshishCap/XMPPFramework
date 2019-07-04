@@ -37,6 +37,7 @@
 - (void)sendMessage:(nonnull XMPPMessage *)message;
 - (void)sendMessageWithBody:(nonnull NSString *)messageBody;
 - (void)changeRoomSubject:(nonnull NSString *)roomSubject;
+- (void)RemoveMemberFromGroup:(nonnull NSString *)member;
 - (void)destroyRoom;
 - (void)changeAffiliations:(nonnull NSArray<NSXMLElement *> *)members;
 - (void)getConfiguration;

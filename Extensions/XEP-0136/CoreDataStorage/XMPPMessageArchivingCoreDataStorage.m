@@ -538,4 +538,275 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
 	}];
 }
 
+- (void)insertUpdateNewContact:(XMPPMessage *)message outgoing:(BOOL)isOutgoing xmppStream:(XMPPStream *)xmppStream
+{
+	// Message should either have a body, or be a composing notification
+	
+	[self scheduleBlock:^{
+		
+		NSString *messageBody = [[message elementForName:@"body"] stringValue];
+		NSString *groupName = [[message attributeForName:@"groupName"] stringValue];
+		
+		XMPPJID *myJid = [self myJIDForXMPPStream:xmppStream];
+		XMPPJID *messageJid = [XMPPJID jidWithString:[[message attributeForName:@"to"] stringValue]];
+		
+		NSManagedObjectContext *moc =  [self managedObjectContext];
+		NSEntityDescription *entity = [self contactEntity:moc];
+		
+		NSPredicate *predicate = [NSPredicate predicateWithFormat:@"bareJidStr == %@",[[message attributeForName:@"to"] stringValue]];
+		
+		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+		[fetchRequest setEntity:entity];
+		[fetchRequest setPredicate:predicate];
+		
+		NSError *error = nil;
+		NSArray * arr  = [moc executeFetchRequest:fetchRequest error:&error];
+		if (arr.count > 0)
+		{
+			XMPPMessageArchiving_Message_CoreDataObject *message = [arr lastObject];
+			XMPPMessageArchiving_Contact_CoreDataObject *contact = [self contactForMessage:message];
+			contact.groupName = groupName;
+			[contact didUpdateObject];
+			[self didUpdateContact:contact];
+		}
+		else
+		{
+			XMPPMessageArchiving_Contact_CoreDataObject *contact = (XMPPMessageArchiving_Contact_CoreDataObject *)
+			[[NSManagedObject alloc] initWithEntity:[self contactEntity:moc]
+					 insertIntoManagedObjectContext:nil];
+			
+			contact.streamBareJidStr = [myJid bare];
+			contact.bareJid = [messageJid bareJID];
+			
+			contact.mostRecentMessageTimestamp = [[NSDate alloc] init];
+			contact.mostRecentMessageBody = messageBody;
+			contact.mostRecentMessageOutgoing = @(isOutgoing);
+			
+			contact.groupName = groupName;
+			
+			[contact willInsertObject];       // Override hook
+			[self willInsertContact:contact]; // Override hook
+			[moc insertObject:contact];
+		}
+	}];
+}
+
+- (void)updateMessageStatus:(NSString *)messageId status:(NSString*)status
+{
+	// Message should either have a body, or be a composing notification
+	
+	[self scheduleBlock:^{
+		NSManagedObjectContext *moc =  [self managedObjectContext];
+		
+		NSEntityDescription *entity = [self messageEntity:moc];
+		
+		NSPredicate *predicate = [NSPredicate predicateWithFormat:@"messageId == %@",messageId];
+		
+		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+		[fetchRequest setEntity:entity];
+		[fetchRequest setPredicate:predicate];
+		
+		NSError *error = nil;
+		NSArray * arr  = [moc executeFetchRequest:fetchRequest error:&error];
+		if (arr.count > 0)
+		{
+			XMPPMessageArchiving_Message_CoreDataObject * message = [arr lastObject];
+			message.messageStatus = status;
+			
+			[message didUpdateObject];       // Override hook
+			[self didUpdateMessage:message]; // Override hook
+		}
+	}];
+}
+
+- (void)updateDeletedMessage:(NSString *)messageId message_delete:(NSString*)message_delete
+{
+	// Message should either have a body, or be a composing notification
+	
+	[self scheduleBlock:^{
+		NSManagedObjectContext *moc =  [self managedObjectContext];
+		
+		NSEntityDescription *entity = [self messageEntity:moc];
+		
+		NSPredicate *predicate = [NSPredicate predicateWithFormat:@"messageId == %@",messageId];
+		
+		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+		[fetchRequest setEntity:entity];
+		[fetchRequest setPredicate:predicate];
+		
+		NSError *error = nil;
+		NSArray * arr  = [moc executeFetchRequest:fetchRequest error:&error];
+		if (arr.count > 0)
+		{
+			XMPPMessageArchiving_Message_CoreDataObject * message = [arr lastObject];
+			message.body = message_delete;
+			
+			[message didUpdateObject];       // Override hook
+			[self didUpdateMessage:message]; // Override hook
+			
+			XMPPMessageArchiving_Contact_CoreDataObject *contact = [self contactForMessage:message];
+			contact.mostRecentMessageBody = message_delete;
+			[contact didUpdateObject];
+			[self didUpdateContact:contact];
+		}
+	}];
+}
+
+/*------- Update Media Message ------*/
+- (void)updateMediaMessage:(NSString*)mediaUrl messageId:(NSString*)messageId {
+	
+	[self scheduleBlock:^{
+		NSManagedObjectContext *moc =  [self managedObjectContext];
+		
+		NSEntityDescription *entity = [self messageEntity:moc];
+		
+		NSPredicate *predicate = [NSPredicate predicateWithFormat:@"messageId == %@",messageId];
+		
+		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+		[fetchRequest setEntity:entity];
+		[fetchRequest setPredicate:predicate];
+		
+		NSError *error = nil;
+		NSArray * arr  = [moc executeFetchRequest:fetchRequest error:&error];
+		if (arr.count > 0)
+		{
+			XMPPMessageArchiving_Message_CoreDataObject * message = [arr objectAtIndex:0];
+			message.body = mediaUrl;
+			
+			[message didUpdateObject];       // Override hook
+			[self didUpdateMessage:message]; // Override hook
+		}
+	}];
+}
+
+/*------- Delete All Messages Count ------*/
+- (void)setUnreadMessageToZero:(NSString*)bareJidStr {
+	
+	[self scheduleBlock:^{
+		NSManagedObjectContext *moc =  [self managedObjectContext];
+		
+		NSEntityDescription *entity = [self contactEntity:moc];
+		
+		NSPredicate *predicate = [NSPredicate predicateWithFormat:@"bareJidStr == %@",bareJidStr];
+		
+		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+		[fetchRequest setEntity:entity];
+		[fetchRequest setPredicate:predicate];
+		
+		NSError *error = nil;
+		NSArray * arr  = [moc executeFetchRequest:fetchRequest error:&error];
+		if (arr.count > 0)
+		{
+			for (int i = 0; i < arr.count; i++)
+			{
+				XMPPMessageArchiving_Contact_CoreDataObject * contact = [arr objectAtIndex:i];
+				contact.unreadMessageCount = nil;
+				
+				[contact didUpdateObject];
+				[self didUpdateContact:contact];
+			}
+		}
+	}];
+}
+
+/*------- Delete Message ------*/
+- (void)deleteMessage:(NSString*)messageId {
+	
+	[self scheduleBlock:^{
+		NSManagedObjectContext *moc =  [self managedObjectContext];
+		NSEntityDescription *entity = [self messageEntity:moc];
+		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+		[fetchRequest setEntity:entity];
+		
+		NSPredicate *predicate = [NSPredicate predicateWithFormat:@"messageId == %@",messageId];
+		[fetchRequest setPredicate:predicate];
+		
+		NSError *error = nil;
+		NSArray * arr  = [moc executeFetchRequest:fetchRequest error:&error];
+		if (arr.count > 0)
+		{
+			for (int i = 0; i < arr.count; i++)
+			{
+				XMPPMessageArchiving_Message_CoreDataObject * message = [arr objectAtIndex:i];
+				[moc deleteObject:message];
+			}
+			
+			NSError *error;
+			if ([moc save:&error])
+			{
+				NSLog(@"Chat single message cleared.");
+			}
+		}
+	}];
+}
+
+/*------- Delete All Messages Count ------*/
+- (void)clearAllMessage:(NSString*)bareJidStr isAllMessages:(BOOL)isAllMessages {
+	
+	[self scheduleBlock:^{
+		NSManagedObjectContext *moc =  [self managedObjectContext];
+		NSEntityDescription *entity = [self messageEntity:moc];
+		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+		[fetchRequest setEntity:entity];
+		
+		if (!isAllMessages) {
+			NSPredicate *predicate = [NSPredicate predicateWithFormat:@"bareJidStr == %@",bareJidStr];
+			[fetchRequest setPredicate:predicate];
+		}
+		
+		//[self UpdateRecentMessageOfContactWithBareJidStr:bareJidStr managedObjectContext:moc];
+		
+		NSError *error = nil;
+		NSArray * arr  = [moc executeFetchRequest:fetchRequest error:&error];
+		if (arr.count > 0)
+		{
+			for (int i = 0; i < arr.count; i++)
+			{
+				XMPPMessageArchiving_Message_CoreDataObject * message = [arr objectAtIndex:i];
+				[moc deleteObject:message];
+			}
+			
+			NSError *error;
+			if ([moc save:&error])
+			{
+				NSLog(@"Chat message cleared.");
+			}
+		}
+	}];
+}
+
+/*------- Delete All Messages Count ------*/
+- (void)deleteAndExitChatRoom:(NSString*)bareJidStr isAllRooms:(BOOL)isAllRooms {
+	
+	[self scheduleBlock:^{
+		NSManagedObjectContext *moc =  [self managedObjectContext];
+		NSEntityDescription *entity = [self contactEntity:moc];
+		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
+		[fetchRequest setEntity:entity];
+		
+		if (!isAllRooms) {
+			NSPredicate *predicate = [NSPredicate predicateWithFormat:@"bareJidStr == %@",bareJidStr];
+			[fetchRequest setPredicate:predicate];
+		}
+		
+		NSError *error = nil;
+		NSArray * arr  = [moc executeFetchRequest:fetchRequest error:&error];
+		if (arr.count > 0)
+		{
+			for (int i = 0; i < arr.count; i++)
+			{
+				XMPPMessageArchiving_Contact_CoreDataObject * contact = [arr objectAtIndex:i];
+				[moc deleteObject:contact];
+			}
+			
+			NSError *error;
+			if ([moc save:&error])
+			{
+				NSLog(@"Chat Contact cleared.");
+			}
+		}
+	}];
+}
+
+
 @end
